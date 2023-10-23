@@ -78,7 +78,7 @@ Graph * txt_to_graph(char* filename) {
             fscanf(fp, "%d", &weight);
             graph->edges[vi][vj] = weight;
         } else {
-            graph->edges[vi][vj] = 1;
+            graph->edges[vi][vj] = graph->edges[vj][vi] = 1;
         }
     }
     print_graph(*graph);
@@ -111,14 +111,39 @@ ListItem * matrix_to_list(Graph * graph) {
     return list;
 }
 
+int * get_vertices_degrees(Graph * graph) {
+    int * vertices_degrees = malloc(sizeof(int) * graph->number_of_vertices);
+    for (int i = 0; i < graph->number_of_vertices; i++) {
+        vertices_degrees[i] = 0;
+    }
+    for (int i = 0; i < graph->number_of_vertices; i++) {
+        for (int j = 0; j < graph->number_of_vertices; j++) {
+            if (graph->edges[i][j] != 0) {
+                vertices_degrees[i]++;
+            }
+        }
+    }
+    return vertices_degrees;
+}
+
 int main() {
     char* input_filename = "input.txt";
     char* output_filename = "output.txt";
     Graph * graph = txt_to_graph(input_filename);
     graph_to_txt(graph, output_filename);
 
+    printf("\n");
+
     ListItem * list = matrix_to_list(graph);
     print_list(list);
+
+    printf("\n");
+
+    int * vertices_degrees = get_vertices_degrees(graph);
+    for (int i = 0; i < graph->number_of_vertices; i++) {
+        printf("%d ", vertices_degrees[i]);
+    }
+    printf("\n");
 
     return 0;
 }
