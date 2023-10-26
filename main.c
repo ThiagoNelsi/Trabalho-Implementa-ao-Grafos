@@ -17,6 +17,20 @@ typedef struct ListItem {
     struct ListItem * next;
 } ListItem;
 
+Graph * new_graph() {
+    Graph * graph = malloc(sizeof(Graph));
+    graph->number_of_vertices = 0;
+    graph->number_of_edges = 0;
+    graph->type = 'G';
+    graph->is_weighted = 0;
+    for (int i = 0; i < MAX_VERTICES; i++) {
+        for (int j = 0; j < MAX_VERTICES; j++) {
+            graph->edges[i][j] = 0;
+        }
+    }
+    return graph;
+}
+
 void print_graph(Graph graph) {
     printf("Number of vertices: %d\n", graph.number_of_vertices);
     printf("Number of edges: %d\n", graph.number_of_edges);
@@ -62,7 +76,7 @@ Graph * txt_to_graph(char* filename) {
     int number_of_vertices, number_of_edges, is_weighted;
     char type; // G or D (dígrafo)
 
-    Graph * graph = malloc(sizeof(Graph));
+    Graph * graph = new_graph();
 
     fscanf(fp, "%d %d %c %d", &number_of_vertices, &number_of_edges, &type, &is_weighted);
 
@@ -77,8 +91,14 @@ Graph * txt_to_graph(char* filename) {
         if (is_weighted) {
             fscanf(fp, "%d", &weight);
             graph->edges[vi][vj] = weight;
+            if (type == 'G') {
+                graph->edges[vj][vi] = weight;
+            }
         } else {
-            graph->edges[vi][vj] = graph->edges[vj][vi] = 1;
+            graph->edges[vi][vj]++;
+            if (type == 'G' && vi != vj) {
+                graph->edges[vj][vi]++;
+            }
         }
     }
     print_graph(*graph);
