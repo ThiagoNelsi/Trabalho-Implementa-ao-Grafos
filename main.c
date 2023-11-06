@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #define MAX_VERTICES 100
 
@@ -24,6 +25,22 @@ typedef struct {
     ListItem * adjacency_list;
     Edge edges[MAX_VERTICES];
 } Graph;
+
+typedef struct {
+    int vertex;
+    int weight;
+} Vertex;
+
+typedef struct EdgeQueue {
+    struct Edge edge;
+    struct EdgeQueue * next;
+} EdgeQueue;
+
+typedef struct {
+    int * vertices_degrees;
+    int * vertices_input_degrees;
+    int * vertices_output_degrees;
+} GraphDegree;
 
 Graph * new_graph() {
     Graph * graph = malloc(sizeof(Graph));
@@ -134,6 +151,23 @@ ListItem * edges_to_list(Graph * graph) {
             }
             aux->next = listItem;
         }
+
+        if (graph->type == 'G') {
+            ListItem * listItem = malloc(sizeof(ListItem));
+            listItem->vertex = graph->edges[i].vi;
+            listItem->weight = graph->edges[i].weight;
+            listItem->next = NULL;
+
+            if (list[graph->edges[i].vj].vertex == -1) {
+                list[graph->edges[i].vj] = *listItem;
+            } else {
+                ListItem * aux = &list[graph->edges[i].vj];
+                while (aux->next != NULL) {
+                    aux = aux->next;
+                }
+                aux->next = listItem;
+            }
+        }
     }
     return list;
 }
@@ -225,20 +259,155 @@ Graph * txt_to_graph(char* filename) {
     return graph;
 }
 
-int * calculate_vertices_degrees(Graph * graph) {
-    int * vertices_degrees = malloc(sizeof(int) * graph->number_of_vertices);
+GraphDegree * calculate_vertices_degrees(Graph * graph) {
+    GraphDegree * graphDegree = malloc(sizeof(GraphDegree));
+    graphDegree->vertices_degrees = malloc(sizeof(int) * graph->number_of_vertices);
+    graphDegree->vertices_input_degrees = malloc(sizeof(int) * graph->number_of_vertices);
+    graphDegree->vertices_output_degrees = malloc(sizeof(int) * graph->number_of_vertices);
+
     for (int i = 0; i < graph->number_of_vertices; i++) {
-        vertices_degrees[i] = 0;
+        graphDegree->vertices_degrees[i] = 0;
+        graphDegree->vertices_input_degrees[i] = 0;
+        graphDegree->vertices_output_degrees[i] = 0;
     }
+
     for (int i = 0; i < graph->number_of_edges; i++) {
-        vertices_degrees[graph->edges[i].vi]++;
+        graphDegree->vertices_degrees[graph->edges[i].vi]++;
+        graphDegree->vertices_degrees[graph->edges[i].vj]++;
+        graphDegree->vertices_input_degrees[graph->edges[i].vj]++;
+        graphDegree->vertices_output_degrees[graph->edges[i].vi]++;
     }
-    return vertices_degrees;
+
+    return graphDegree;
 }
 
-Graph * generate_minimun_spanning_tree(Graph * graph) {
+int queue_includes(EdgeQueue * queue, Edge edge) {
+    EdgeQueue * aux = queue;
+
+    if (aux == NULL) return 0;
+
+    while (aux != NULL) {
+        if (aux->edge.vi == edge.vi && aux->edge.vj == edge.vj) {
+            return 1;
+        }
+        aux = aux->next;
+    }
+    return 0;
+}
+
+void add_edge_to_queue(ListItem * adjacency_list, EdgeQueue ** queue, int * visited, int vertex) {
+    ListItem * aux = &adjacency_list[vertex];
+
+    while(aux != NULL) {
+        Edge edge;
+        edge.vi = vertex;
+        edge.vj = aux->vertex;
+
+        Edge edge2;
+        edge2.vi = aux->vertex;
+        edge2.vj = vertex;
+
+        if (visited[aux->vertex] == 0 && !queue_includes(*queue, edge) && !queue_includes(*queue, edge2)) {
+            EdgeQueue * edgeQueue = malloc(sizeof(EdgeQueue));
+            edgeQueue->edge.vi = vertex;
+            edgeQueue->edge.vj = aux->vertex;
+            edgeQueue->edge.weight = aux->weight;
+            edgeQueue->next = NULL;
+
+            if (*queue == NULL) {
+                *queue = edgeQueue;
+            } else {
+                EdgeQueue * aux_queue = (*queue);
+                while (aux_queue->next != NULL) {
+                    aux_queue = aux_queue->next;
+                }
+                aux_queue->next = edgeQueue;
+            }
+        }
+        aux = aux->next;
+    }
+}
+
+Edge remove_min_vertex(EdgeQueue ** queue, int * visited) {
+    // get min vertex and remove from queue
+    Edge min_edge;
+    min_edge.vi = -1;
+    min_edge.weight = INT_MAX;
+
+    EdgeQueue * aux = (*queue);
+    EdgeQueue * prev = NULL;
+    EdgeQueue * prev_min_edge = NULL;
+    while (aux != NULL) {
+        if (aux->edge.weight < min_edge.weight && visited[aux->edge.vj] == 0) {
+            min_edge.vi = aux->edge.vi;
+            min_edge.vj = aux->edge.vj;
+            min_edge.weight = aux->edge.weight;
+            prev_min_edge = prev;
+        }
+        prev = aux;
+        aux = aux->next;
+    }
+
+    if (prev_min_edge == NULL) {
+        (*queue) = (*queue)->next;
+    } else {
+        prev_min_edge->next = prev_min_edge->next->next;
+    }
+
+    visited[min_edge.vj] = 1;
+
+    return min_edge;
+}
+
+void print_queue(EdgeQueue * queue) {
+    EdgeQueue * aux = queue;
+    while (aux != NULL) {
+        printf("(%d|%d|%d) ", aux->edge.vi, aux->edge.vj, aux->edge.weight);
+        aux = aux->next;
+    }
+    printf("\n");
+}
+
+int all_edges_visited(int * visited, int size) {
+    for (int i = 0; i < size; i++) {
+        if (visited[i] == 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int * generate_minimun_spanning_tree(Graph * graph, int start_vertex) {
     ListItem * adjacency_list = edges_to_list(graph);
-    print_list(adjacency_list, graph->number_of_vertices);
+
+    // Inicialization
+    int * key = malloc(sizeof(int) * graph->number_of_vertices);
+    int * parent = malloc(sizeof(int) * graph->number_of_vertices);
+    int * visited = malloc(sizeof(int) * graph->number_of_vertices);
+
+    for (int i = 0; i < graph->number_of_vertices; i++) {
+        key[i] = INT_MAX;
+        parent[i] = -1;
+        visited[i] = 0;
+    }
+
+    key[start_vertex] = 0;
+    visited[start_vertex] = 1;
+
+    EdgeQueue * queue = malloc(sizeof(EdgeQueue));
+    queue = NULL;
+
+    add_edge_to_queue(adjacency_list, &queue, visited, start_vertex);
+
+    while (queue != NULL && !all_edges_visited(visited, graph->number_of_vertices)) {
+        Edge min_vertex = remove_min_vertex(&queue, visited);
+        key[min_vertex.vj] = min_vertex.weight;
+        parent[min_vertex.vj] = min_vertex.vi;
+
+        add_edge_to_queue(adjacency_list, &queue, visited, min_vertex.vj);
+    }
+
+    return parent;
 }
 
 int main() {
@@ -273,15 +442,26 @@ int main() {
     printf("\n");
 
     printf("[5/5] Calculating vertices degrees...\n");
-    int * vertices_degrees = calculate_vertices_degrees(graph);
-    printf("%-10s %-10s\n", "Vertex", "Degree");
-    for (int i = 0; i < graph->number_of_vertices; i++) {
-        printf("%-10d %-10d\n", i, vertices_degrees[i]);
+    GraphDegree * vertices_degrees = calculate_vertices_degrees(graph);
+    if (graph->type == 'G') {
+        printf("%-10s %-10s\n", "Vertex", "Degree");
+        for (int i = 0; i < graph->number_of_vertices; i++) {
+            printf("%-10d %-10d\n", i, vertices_degrees->vertices_degrees[i]);
+        }
+    } else {
+        printf("%-10s %-10s %-10s\n", "Vertex", "Input", "Output");
+        for (int i = 0; i < graph->number_of_vertices; i++) {
+            printf("%-10d %-10d %-10d\n", i, vertices_degrees->vertices_input_degrees[i], vertices_degrees->vertices_output_degrees[i]);
+        }
     }
     printf("\n");
 
     printf("[6/6] Generating Minimum Spanning Tree...\n");
-    generate_minimun_spanning_tree(graph);
+    int * tree = generate_minimun_spanning_tree(graph, 3);
+    printf("%-10s %-10s\n", "Vertex", "Parent");
+    for (int i = 0; i < graph->number_of_vertices; i++) {
+        printf("%-10d %-10d\n", i, tree[i]);
+    }
 
     return 0;
 }
