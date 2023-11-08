@@ -42,6 +42,11 @@ typedef struct {
     int * vertices_output_degrees;
 } GraphDegree;
 
+typedef struct Path {
+    int * distance;
+    int * parent;
+} Path;
+
 Graph * new_graph() {
     Graph * graph = malloc(sizeof(Graph));
     graph->number_of_vertices = 0;
@@ -359,7 +364,7 @@ Edge remove_min_vertex(EdgeQueue ** queue, int * visited) {
     return min_edge;
 }
 
-void print_queue(EdgeQueue * queue) {
+void print_edge_queue(EdgeQueue * queue) {
     EdgeQueue * aux = queue;
     while (aux != NULL) {
         printf("(%d|%d|%d) ", aux->edge.vi, aux->edge.vj, aux->edge.weight);
@@ -410,6 +415,72 @@ int * generate_minimun_spanning_tree(Graph * graph, int start_vertex) {
     return parent;
 }
 
+Path * find_shortest_path(Graph * graph, int start_vertex) {
+    Path * path = malloc(sizeof(Path));
+
+    int * distance = malloc(sizeof(int) * graph->number_of_vertices);
+    int * visited = malloc(sizeof(int) * graph->number_of_vertices);
+    int * parent = malloc(sizeof(int) * graph->number_of_vertices);
+
+    for (int i = 0; i < graph->number_of_vertices; i++) {
+        distance[i] = INT_MAX;
+        visited[i] = 0;
+        parent[i] = -1;
+    }
+
+    distance[start_vertex] = 0;
+
+    // Dijkstra
+    for (int count = 0; count < graph->number_of_vertices - 1; count++) {
+        int min_distance = INT_MAX;
+        int min_index = -1;
+
+        for (int v = 0; v < graph->number_of_vertices; v++) {
+            if (!visited[v] && distance[v] < min_distance) {
+                min_distance = distance[v];
+                min_index = v;
+            }
+        }
+
+        visited[min_index] = 1;
+
+        for (int v = 0; v < graph->number_of_vertices; v++) {
+            if (!visited[v] && graph->adjacency_matrix[min_index][v] != 0 &&
+                distance[min_index] + graph->adjacency_matrix[min_index][v] < distance[v]) {
+                distance[v] = distance[min_index] + graph->adjacency_matrix[min_index][v];
+                parent[v] = min_index;
+            }
+        }
+    }
+
+    path->distance = distance;
+    path->parent = parent;
+
+    return path;
+}
+
+void print_shortest_paths(Path * path, int start_vertex, int number_of_vertices) {
+    printf("%-10s %-10s %-10s\n", "Vertex", "Distance", "Path");
+
+    for (int i = 0; i < number_of_vertices; i++) {
+        if (i == start_vertex) {
+            printf("%-10d %-10d %-10s\n", i, 0, "-");
+        } else if (path->distance[i] == INT_MAX) {
+            printf("%-10d %-10s %-10s\n", i, "INF", "-");
+        } else {
+            printf("%-10d %-10d %d", i, path->distance[i], i);
+
+            int parent = path->parent[i];
+            while (parent != start_vertex) {
+                printf(" <- %d", parent);
+                parent = path->parent[parent];
+            }
+
+            printf(" <- %d\n", start_vertex);
+        }
+    }
+}
+
 int main() {
     char* input_filename = "input.txt";
     char* output_filename = "output.txt";
@@ -457,11 +528,24 @@ int main() {
     printf("\n");
 
     printf("[6/6] Generating Minimum Spanning Tree...\n");
-    int * tree = generate_minimun_spanning_tree(graph, 3);
+    int * tree = generate_minimun_spanning_tree(graph, 0);
     printf("%-10s %-10s\n", "Vertex", "Parent");
     for (int i = 0; i < graph->number_of_vertices; i++) {
         printf("%-10d %-10d\n", i, tree[i]);
     }
+    // printf sum
+    int sum = 0;
+    for (int i = 0; i < graph->number_of_vertices; i++) {
+        sum += graph->adjacency_matrix[i][tree[i]];
+    }
+    printf("Sum: %d\n", sum);
+
+
+    printf("\n");
+
+    printf("[7/7] Finding shortest path...\n");
+    Path * path = find_shortest_path(graph, 0);
+    print_shortest_paths(path, 0, graph->number_of_vertices);
 
     return 0;
 }
